@@ -83,10 +83,8 @@ async function pollForJobs() {
         });
       }));
 
-      await redis_server.set(`job:${ques_name}:worker:${WORKER_FIELD}`, JSON.stringify(updatedTestcases));
+      await redis_server.setEx(`job:${ques_name}:worker:${WORKER_FIELD}`, 30, JSON.stringify(updatedTestcases));
       await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
-
-      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 30);  
       await redis_server.expire(`job:${ques_name}:status`, 30);
 
       fs.unlinkSync(codePath);
@@ -119,5 +117,5 @@ app.get('/ping', (req, res) => {
 
 
 app.listen(port, () => {
-  console.log('worker_0 running at port 5000');
+  console.log(`${WORKER_FIELD} running at port ${port}`);
 });
