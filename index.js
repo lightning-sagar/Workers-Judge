@@ -8,12 +8,17 @@ import { connectredis } from "./redis/redis.js";
 import fetch from 'node-fetch';
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 app.use(express.json());
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const WORKER_FIELD = process.env.WORKER_FIELD;
+const port = process.env.PORT;
+const SELF_URL = process.env.SELF_URL || `http://localhost:${port}/ping`;
+
 const redis_server = await connectredis();
+const TTL_SECONDS = 60;  
 
 async function pollForJobs() {
   while (true) {
@@ -21,21 +26,21 @@ async function pollForJobs() {
       const { element: ques_name } = await redis_server.brPop('job_queue', 0);
       console.log(`Got job: ${ques_name}`);
 
+      await redis_server.del(`job:${ques_name}:worker:${WORKER_FIELD}`);
+      await redis_server.del(`job:${ques_name}:status`);
+
       const code = await redis_server.get(`job:${ques_name}:code`);
       const data_testcases = await redis_server.get(`job:${ques_name}:worker:${WORKER_FIELD}`);
-
       if (!data_testcases) continue;
-      const testcases = JSON.parse(data_testcases);
 
+      const testcases = JSON.parse(data_testcases);
       const codePath = path.join(__dirname, `${ques_name}_${WORKER_FIELD}.cpp`);
       const execPath = path.join(__dirname, `${ques_name}_${WORKER_FIELD}.exe`);
 
       fs.writeFileSync(codePath, code);
 
       await new Promise((resolve, reject) => {
-        exec(`g++ "${codePath}" -o "${execPath}"`,{
-            timeout: 10000 
-        }, (err, stdout, stderr) => {
+        exec(`g++ "${codePath}" -o "${execPath}"`, { timeout: 10000 }, (err, stdout, stderr) => {
           if (err) {
             console.error("Compilation error:", stderr);
             return reject("Compilation failed");
@@ -46,23 +51,17 @@ async function pollForJobs() {
 
       const updatedTestcases = await Promise.all(testcases.map(tc => {
         return new Promise((resolve) => {
-          let timeoutSec = parseInt(tc.timeout);
-          if(timeoutSec>2.5){
-            timeoutSec = 2.5
-          }
-          const maxBufferBytes = parseInt(tc.sizeout) * 1024;
+          let timeoutSec = parseFloat(tc.timeout);
+          if (timeoutSec > 2.5) timeoutSec = 2.5;
 
-          const run = spawn(execPath, [], {
-            stdio: ['pipe', 'pipe', 'pipe']
-          });
-
+          const run = spawn(execPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
           let result = '';
           let errorOutput = '';
+          const timeoutMs = timeoutSec * 1000;
+          const timer = setTimeout(() => run.kill('SIGKILL'), timeoutMs);
 
           run.stdout.on('data', data => result += data.toString());
           run.stderr.on('data', data => errorOutput += data.toString());
-          const timeoutMs = timeoutSec * 1000;        
-          const timer = setTimeout(() => run.kill('SIGKILL'), timeoutMs);
 
           run.stdin.write(tc.input.replace(/\r\n/g, '\n').trim() + '\n');
           run.stdin.end();
@@ -70,7 +69,6 @@ async function pollForJobs() {
           run.on('close', (code) => {
             clearTimeout(timer);
             let correct = false;
-
             if (code === 0) {
               correct = result.trim() === tc.expected_output.trim();
             } else if (code === null) {
@@ -78,17 +76,18 @@ async function pollForJobs() {
             } else {
               result = `Runtime error (exit code ${code})\n${errorOutput}`;
             }
-
             resolve({ ...tc, result, correct });
           });
         });
       }));
 
       await redis_server.set(`job:${ques_name}:worker:${WORKER_FIELD}`, JSON.stringify(updatedTestcases));
-      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 5);  // right after set
+      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, TTL_SECONDS);
 
       await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
-      await redis_server.expire(`job:${ques_name}:status`, 5);
+      await redis_server.expire(`job:${ques_name}:status`, TTL_SECONDS);
+
+      await redis_server.expire(`job:${ques_name}:code`, TTL_SECONDS);  
 
       fs.unlinkSync(codePath);
       fs.unlinkSync(execPath);
@@ -101,8 +100,6 @@ async function pollForJobs() {
 
 pollForJobs();
 
-const SELF_URL = process.env.SELF_URL || `http://localhost:${port}/ping`;
-
 setInterval(async () => {
   try {
     const res = await fetch(SELF_URL);
@@ -111,14 +108,13 @@ setInterval(async () => {
   } catch (error) {
     console.error(`[✗] Self-ping failed:`, error.message);
   }
-}, 1000 * 60 * 10);  
+}, 1000 * 60 * 10);   
 
 app.get('/ping', (req, res) => {
   console.log('Ping received at', new Date().toISOString());
   res.send('Worker is awake');
 });
 
-const port = process.env.PORT
 app.listen(port, () => {
-  console.log('worker_0 running at port 5000');
+  console.log(`Worker running at port ${port}`);
 });
