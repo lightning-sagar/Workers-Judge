@@ -5,6 +5,7 @@ import path from "path";
 import { exec, spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { connectredis } from "./redis/redis.js";
+import fetch from 'node-fetch';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -99,9 +100,22 @@ async function pollForJobs() {
 
 pollForJobs();
 
-app.get('/',(req,res)=>{
-  res.send("ok start to work")
-})
+const SELF_URL = process.env.SELF_URL || `http://localhost:${port}/ping`;
+
+setInterval(async () => {
+  try {
+    const res = await fetch(SELF_URL);
+    const text = await res.text();
+    console.log(`[✓] Self-ping successful: ${text}`);
+  } catch (error) {
+    console.error(`[✗] Self-ping failed:`, error.message);
+  }
+}, 1000 * 60 * 50);  
+
+app.get('/ping', (req, res) => {
+  console.log('Ping received at', new Date().toISOString());
+  res.send('Worker is awake');
+});
 
 const port = process.env.PORT
 app.listen(port, () => {
