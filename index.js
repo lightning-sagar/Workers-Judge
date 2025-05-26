@@ -21,8 +21,9 @@ async function pollForJobs() {
       const { element: ques_name } = await redis_server.brPop('job_queue', 0);
       console.log(`Got job: ${ques_name}`);
 
-      const code = await redis_server.hGet(ques_name, 'code');
-      const data_testcases = await redis_server.hGet(ques_name, WORKER_FIELD);
+      const code = await redis_server.get(`job:${ques_name}:code`);
+      const data_testcases = await redis_server.get(`job:${ques_name}:worker:${WORKER_FIELD}`);
+
       if (!data_testcases) continue;
       const testcases = JSON.parse(data_testcases);
 
@@ -84,9 +85,9 @@ async function pollForJobs() {
       }));
 
       await redis_server.set(`job:${ques_name}:worker:${WORKER_FIELD}`, JSON.stringify(updatedTestcases));
-      await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
+      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 5);  // right after set
 
-      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 5);  
+      await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
       await redis_server.expire(`job:${ques_name}:status`, 5);
 
       fs.unlinkSync(codePath);
@@ -110,7 +111,7 @@ setInterval(async () => {
   } catch (error) {
     console.error(`[✗] Self-ping failed:`, error.message);
   }
-}, 1000 * 60 * 50);  
+}, 1000 * 60 * 10);  
 
 app.get('/ping', (req, res) => {
   console.log('Ping received at', new Date().toISOString());
