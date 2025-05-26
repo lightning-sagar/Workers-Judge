@@ -85,8 +85,8 @@ async function pollForJobs() {
       await redis_server.set(`job:${ques_name}:worker:${WORKER_FIELD}`, JSON.stringify(updatedTestcases));
       await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
 
-      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 3600); // 1 hour
-      await redis_server.expire(`job:${ques_name}:status`, 3600);
+      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 60);  
+      await redis_server.expire(`job:${ques_name}:status`, 60);
 
       fs.unlinkSync(codePath);
       fs.unlinkSync(execPath);
@@ -98,6 +98,10 @@ async function pollForJobs() {
 }
 
 pollForJobs();
+
+app.get('/',(req,res)=>{
+  res.send("ok start to work")
+})
 
 const port = process.env.PORT
 app.listen(port, () => {
