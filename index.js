@@ -86,8 +86,8 @@ async function pollForJobs() {
       await redis_server.set(`job:${ques_name}:worker:${WORKER_FIELD}`, JSON.stringify(updatedTestcases));
       await redis_server.hSet(`job:${ques_name}:status`, { [WORKER_FIELD]: 'completed' });
 
-      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 60);  
-      await redis_server.expire(`job:${ques_name}:status`, 60);
+      await redis_server.expire(`job:${ques_name}:worker:${WORKER_FIELD}`, 5);  
+      await redis_server.expire(`job:${ques_name}:status`, 5);
 
       fs.unlinkSync(codePath);
       fs.unlinkSync(execPath);
