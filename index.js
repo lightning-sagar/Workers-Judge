@@ -108,7 +108,7 @@ setInterval(async () => {
   } catch (error) {
     console.error(`[✗] Self-ping failed:`, error.message);
   }
-}, 1000 * 60 * 50);  
+}, 1000 * 60 * 20);  
 
 app.get('/ping', (req, res) => {
   console.log('Ping received at', new Date().toISOString());
