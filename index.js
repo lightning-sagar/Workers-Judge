@@ -6,8 +6,15 @@ import { fileURLToPath } from "url";
 import fetch from 'node-fetch';
 import 'dotenv/config';
 import { connectredis } from "./redis/redis.js";
+import cors from "cors"
 
 const app = express();
+app.use(
+  cors({
+    origin: 'https://judge-lib-mg91.vercel.app/',  
+    methods: ['GET', 'POST'],  
+  })
+);
 app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
