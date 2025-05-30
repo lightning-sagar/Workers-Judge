@@ -9,7 +9,7 @@ import { connectredis } from "./redis/redis.js";
 import cors from "cors"
 
 const app = express();
-const allowedOrigins = ['https://judge-lib-mg91.vercel.app'];
+const allowedOrigins = ['https://judge-lib-mg91.vercel.app','https://judge-lib-mg91.vercel.app/npm','https://judge-lib-mg91.vercel.app/microservice'];
 
 app.use(cors({
   origin: function (origin, callback) {
