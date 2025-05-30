@@ -9,12 +9,19 @@ import { connectredis } from "./redis/redis.js";
 import cors from "cors"
 
 const app = express();
-app.use(
-  cors({
-    origin: 'https://judge-lib-mg91.vercel.app/',  
-    methods: ['GET', 'POST'],  
-  })
-);
+const allowedOrigins = ['https://judge-lib-mg91.vercel.app'];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
 app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
