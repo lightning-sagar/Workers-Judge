@@ -51,7 +51,7 @@ async function compileCode(language, codePath, execPath) {
 
 function runTestcase(language, execPath, input, expected_output, timeoutSec, ques_name) {
   return new Promise((resolve) => {
-    if (timeoutSec > 2.5) timeoutSec = 2.5;
+    // if (timeoutSec > 2.5) timeoutSec = 2.5;
     const timeoutMs = timeoutSec * 1000;
 
     let run;
@@ -63,12 +63,13 @@ function runTestcase(language, execPath, input, expected_output, timeoutSec, que
           cwd: path.dirname(execPath),
           stdio: ['pipe', 'pipe', 'pipe']
         });
-      } else if (language === "python") {
+      } else if (language === "python" || language === "py") {
         run = spawn('python3', [execPath], {
           stdio: ['pipe', 'pipe', 'pipe']
         });
       } else {
         return resolve({
+          ques_name,
           input,
           expected_output,
           result: `Unsupported language: ${language}`,
@@ -77,6 +78,7 @@ function runTestcase(language, execPath, input, expected_output, timeoutSec, que
       }
     } catch (err) {
       return resolve({
+        ques_name,
         input,
         expected_output,
         result: `Failed to spawn process for ${language}: ${err.message}`,
@@ -121,7 +123,7 @@ function runTestcase(language, execPath, input, expected_output, timeoutSec, que
 }
 
 
- async function processJob(ques_name, code, language, testcases) {
+async function processJob(ques_name, code, language, testcases) {
   const extension = language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : 'py';
   const fileName = `${ques_name}_${WORKER_FIELD}.${extension}`;
   const filePath = path.join(__dirname, fileName);
@@ -163,11 +165,9 @@ async function pollForJobs() {
 
       const code = await redis_server.hGet(ques_name, 'code');
       const language = await redis_server.hGet(ques_name, 'language');
-      const data = await redis_server.hGet(ques_name, WORKER_FIELD);
       const data_testcases = await redis_server.hGet(ques_name, WORKER_FIELD);
       if (!data_testcases) continue;
       const testcases = JSON.parse(data_testcases);
-      console.log( language, testcases)
       await processJob(ques_name, code, language, testcases);
     } catch (err) {
       console.error("Error while polling job:", err);
@@ -176,16 +176,6 @@ async function pollForJobs() {
 }
 pollForJobs();
 
-const SELF_URL = process.env.SELF_URL || `http://localhost:${port}/ping`;
-setInterval(async () => {
-  try {
-    const res = await fetch(SELF_URL);
-    const text = await res.text();
-    console.log(`[✓] Self-ping successful: ${text}`);
-  } catch (err) {
-    console.error(`[✗] Self-ping failed:`, err.message);
-  }
-}, 1000 * 60 * 20);
 
 app.get('/ping', (req, res) => {
   console.log('Ping received at', new Date().toISOString());
