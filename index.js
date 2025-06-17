@@ -108,8 +108,8 @@ function runTestcase(language, execPath, input, expected_output, timeoutSec, que
     run.on('close', (code) => {
       clearTimeout(timer);
       let correct = false;
-
-      if (code === 0) {
+      console.log(expected_output)
+      if (code === 0 && expected_output ) {
         correct = result.trim() === expected_output.trim();
       } else if (code === null) {
         result = `Timeout exceeded (${timeoutMs}ms)`;
